@@ -78,6 +78,20 @@ const App: React.FC = () => {
     initCloud();
   }, []);
 
+  // タブに戻ったとき（スマホでアプリを再表示したときなど）にクラウドから取得して反映
+  useEffect(() => {
+    const onVisible = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!state.cloudSettings?.enabled || !state.cloudSettings.supabaseUrl || !state.cloudSettings.supabaseKey || !state.cloudSettings.householdId) return;
+      setIsSyncing(true);
+      const cloudData = await fetchFromCloud(state.cloudSettings);
+      if (cloudData) setState(cloudData);
+      setIsSyncing(false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [state.cloudSettings?.enabled, state.cloudSettings?.supabaseUrl, state.cloudSettings?.supabaseKey, state.cloudSettings?.householdId]);
+
   useEffect(() => {
     saveState(state);
     const sync = async () => {

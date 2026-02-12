@@ -17,7 +17,8 @@ import {
   Layers,
   Pencil,
   Check,
-  X
+  X,
+  GripVertical
 } from 'lucide-react';
 import { MonthlyRecord, DetailItem, AppState } from '../types';
 import AssetAllocationChart from './AssetAllocationChart';
@@ -53,6 +54,8 @@ const CashflowTab: React.FC<Props> = ({
   const [editingSubItem, setEditingSubItem] = useState<{ type: string; parentId: string; subId: string; draft: string } | null>(null);
   /** 収入・支出・積立・資産の各ブロックのアコーディオン開閉（デフォルトは全て閉＝合計のみ表示） */
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({ income: false, expense: false, savings: false, assets: false });
+  /** ドラッグ中の項目（並び替え用） */
+  const [dragState, setDragState] = useState<{ type: string; parentId: string | null; index: number } | null>(null);
 
   // 現在表示中の月のレコード
   const record = state.records.find(r => r.year === selectedYear && r.month === selectedMonth);
@@ -162,12 +165,12 @@ const CashflowTab: React.FC<Props> = ({
   };
 
   const createRecordIfMissing = () => {
-    // 構造をコピーする関数
-    const copyStructure = (items: DetailItem[], carryOverAmount: boolean = false): DetailItem[] => {
+    // 構造と金額をコピーする関数（次月シートで全項目の金額を引き継ぐ）
+    const copyStructure = (items: DetailItem[], carryOverAmount: boolean = true): DetailItem[] => {
       return items.map(item => ({
         id: generateId(),
         label: item.label,
-        amount: carryOverAmount ? item.amount : 0, 
+        amount: carryOverAmount ? item.amount : 0,
         subItems: item.subItems ? item.subItems.map(sub => ({
           id: generateId(),
           label: sub.label,
@@ -176,35 +179,12 @@ const CashflowTab: React.FC<Props> = ({
       }));
     };
 
-    // 支出は「固定費」だけ金額を翌月に引き継ぐ
-    const copyExpenseStructure = (items: DetailItem[]): DetailItem[] => {
-      return items.map(item => {
-        const carry = item.label === '固定費';
-        const newSubItems = item.subItems
-          ? item.subItems.map(sub => ({
-              id: generateId(),
-              label: sub.label,
-              amount: carry ? sub.amount : 0
-            }))
-          : undefined;
-        const amount = newSubItems
-          ? newSubItems.reduce((sum, s) => sum + s.amount, 0)
-          : (carry ? item.amount : 0);
-        return {
-          id: generateId(),
-          label: item.label,
-          amount,
-          subItems: newSubItems
-        };
-      });
-    };
-
     const newRecord: MonthlyRecord = {
       id: generateId(),
       year: selectedYear,
       month: selectedMonth,
       incomeDetails: lastAvailableRecord ? copyStructure(lastAvailableRecord.incomeDetails) : state.categoryTemplate.income.map(label => ({ id: generateId(), label, amount: 0 })),
-      expenseDetails: lastAvailableRecord ? copyExpenseStructure(lastAvailableRecord.expenseDetails) : state.categoryTemplate.expense.map(label => {
+      expenseDetails: lastAvailableRecord ? copyStructure(lastAvailableRecord.expenseDetails) : state.categoryTemplate.expense.map(label => {
         if (label === '固定費') {
           return {
             id: generateId(),
@@ -354,6 +334,48 @@ const CashflowTab: React.FC<Props> = ({
     }));
   };
 
+  /** 項目の並び順を変更（ドラッグ＆ドロップ） */
+  const reorderItems = (type: string, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setState(prev => ({
+      ...prev,
+      records: prev.records.map(r => {
+        if (r.year !== selectedYear || r.month !== selectedMonth) return r;
+        const key = getKey(type);
+        const list = [...((r as any)[key] as DetailItem[])];
+        const [removed] = list.splice(fromIndex, 1);
+        list.splice(toIndex, 0, removed);
+        return { ...r, [key]: list };
+      })
+    }));
+    setDragState(null);
+  };
+
+  /** 内訳の並び順を変更（ドラッグ＆ドロップ） */
+  const reorderSubItems = (type: string, parentId: string, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setState(prev => ({
+      ...prev,
+      records: prev.records.map(r => {
+        if (r.year !== selectedYear || r.month !== selectedMonth) return r;
+        const key = getKey(type);
+        const list = (r as any)[key] as DetailItem[];
+        return {
+          ...r,
+          [key]: list.map(item => {
+            if (item.id !== parentId || !item.subItems) return item;
+            const subs = [...item.subItems];
+            const [removed] = subs.splice(fromIndex, 1);
+            subs.splice(toIndex, 0, removed);
+            const amount = subs.reduce((sum, s) => sum + s.amount, 0);
+            return { ...item, subItems: subs, amount };
+          })
+        };
+      })
+    }));
+    setDragState(null);
+  };
+
   const renderSection = (title: string, type: 'income' | 'expense' | 'savings' | 'assets', items: DetailItem[], colorClass: string, Icon: any, isExpanded: boolean, onToggle: () => void) => (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full">
       <button
@@ -377,17 +399,40 @@ const CashflowTab: React.FC<Props> = ({
       {isExpanded && (
       <>
       <div className="p-3 space-y-3 flex-1 overflow-y-auto max-h-[600px]">
-        {items.map((item) => {
+        {items.map((item, itemIndex) => {
           const autoExpanded = type === 'expense' && ['固定費', '固定変動費', 'やりくり費', '特別費'].includes(item.label);
           const isExpanded = expandedItems[item.id] ?? autoExpanded;
           const hasSubContainer = item.subItems !== undefined;
           const isBreakdownMode = hasSubContainer;
+          const isDragging = dragState?.parentId === null && dragState?.type === type && dragState?.index === itemIndex;
 
           return (
-            <div key={item.id} className="group flex flex-col gap-1">
+            <div
+              key={item.id}
+              className={`group flex flex-col gap-1 ${isDragging ? 'opacity-50' : ''}`}
+              draggable
+              onDragStart={(e) => {
+                setDragState({ type, parentId: null, index: itemIndex });
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', '');
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragState && dragState.parentId === null && dragState.type === type) reorderItems(type, dragState.index, itemIndex);
+                setDragState(null);
+              }}
+              onDragEnd={() => setDragState(null)}
+            >
               <div className="relative bg-slate-50/50 p-2.5 rounded-xl border border-slate-100 flex flex-col gap-1.5 shadow-sm">
                 <div className="flex justify-between items-center px-1">
                   <div className="flex items-center gap-1 flex-1 min-w-0">
+                    <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 shrink-0" title="ドラッグで並び替え">
+                      <GripVertical size={14} />
+                    </span>
                     {hasSubContainer && (
                       <button 
                         type="button"
@@ -517,9 +562,30 @@ const CashflowTab: React.FC<Props> = ({
 
               {isExpanded && hasSubContainer && (
                 <div className="ml-4 pl-4 border-l-2 border-blue-100 space-y-2 mt-1">
-                  {item.subItems!.map((sub) => (
-                    <div key={sub.id} className="flex flex-col gap-1 bg-white p-2 rounded-lg border border-slate-100 shadow-sm relative">
+                  {item.subItems!.map((sub, subIndex) => {
+                    const isSubDragging = dragState?.parentId === item.id && dragState?.type === type && dragState?.index === subIndex;
+                    return (
+                    <div
+                      key={sub.id}
+                      className={`flex flex-col gap-1 bg-white p-2 rounded-lg border border-slate-100 shadow-sm relative ${isSubDragging ? 'opacity-50' : ''}`}
+                      draggable
+                      onDragStart={(e) => {
+                        setDragState({ type, parentId: item.id, index: subIndex });
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', '');
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (dragState && dragState.parentId === item.id && dragState.type === type) reorderSubItems(type, item.id, dragState.index, subIndex);
+                        setDragState(null);
+                      }}
+                      onDragEnd={() => setDragState(null)}
+                    >
                       <div className="flex justify-between items-center px-1">
+                        <span className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-500 shrink-0 mr-1" title="ドラッグで並び替え">
+                          <GripVertical size={12} />
+                        </span>
                         {editingSubItem?.type === type && editingSubItem?.parentId === item.id && editingSubItem?.subId === sub.id ? (
                           <input
                             autoFocus
@@ -610,7 +676,7 @@ const CashflowTab: React.FC<Props> = ({
                         />
                       </div>
                     </div>
-                  ))}
+                  ); })}
                   
                   {addingSubItemTo?.id === item.id ? (
                     <div className="bg-blue-50 p-2 rounded-lg border border-blue-200 space-y-2">

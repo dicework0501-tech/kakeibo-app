@@ -224,7 +224,7 @@ const App: React.FC = () => {
           <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl mx-auto mb-4 shadow-lg flex items-center justify-center">
             <LayoutDashboard size={24} />
           </div>
-          <h1 className="text-xl font-black tracking-tighter italic">Couples Finance</h1>
+          <h1 className="text-xl font-black tracking-tighter italic">家計ミエルカApp</h1>
         </div>
         <div className="flex flex-col w-full px-3 gap-2">
           {navButton('dashboard', <LayoutDashboard size={20} />, 'ダッシュボード', 'ホーム')}

@@ -358,22 +358,54 @@ const App: React.FC = () => {
                 </div>
               </div>
               <div className="p-4 md:p-8 space-y-6">
-                <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${state.cloudSettings?.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>
-                      {state.cloudSettings?.enabled ? <Cloud size={20} /> : <CloudOff size={20} />}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-800">同期を有効にする</p>
-                      <p className="text-[10px] text-slate-400 font-bold uppercase">Real-time Cloud Sync</p>
-                    </div>
+                {/* クラウド同期 ＝ このブロック全体。Supabase の値入力 → 同期ON */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-4">
+                  <p className="text-[11px] font-bold text-slate-500">※ ここが「クラウド同期」の設定です。下の3つを入れてから「同期を有効にする」をONにしてください。</p>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 mb-1">Supabase URL</label>
+                    <input
+                      value={state.cloudSettings?.supabaseUrl ?? ''}
+                      onChange={(e) => setState(prev => ({ ...prev, cloudSettings: { ...(prev.cloudSettings || { supabaseUrl: '', supabaseKey: '', householdId: '', enabled: false }), supabaseUrl: e.target.value } }))}
+                      placeholder="https://xxxx.supabase.co"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    />
                   </div>
-                  <button 
-                    onClick={() => setState(prev => ({ ...prev, cloudSettings: { ...(prev.cloudSettings || { supabaseUrl: '', supabaseKey: '', householdId: '', enabled: false }), enabled: !prev.cloudSettings?.enabled } }))}
-                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${state.cloudSettings?.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                  >
-                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${state.cloudSettings?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 mb-1">API Key（anon のキー）</label>
+                    <input
+                      type="password"
+                      value={state.cloudSettings?.supabaseKey ?? ''}
+                      onChange={(e) => setState(prev => ({ ...prev, cloudSettings: { ...(prev.cloudSettings || { supabaseUrl: '', supabaseKey: '', householdId: '', enabled: false }), supabaseKey: e.target.value } }))}
+                      placeholder="Supabase の API Keys → anon のキー"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-500 mb-1">世帯ID（夫婦で同じものを）</label>
+                    <input
+                      value={state.cloudSettings?.householdId ?? ''}
+                      onChange={(e) => setState(prev => ({ ...prev, cloudSettings: { ...(prev.cloudSettings || { supabaseUrl: '', supabaseKey: '', householdId: '', enabled: false }), householdId: e.target.value } }))}
+                      placeholder="例: my-house-001"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${state.cloudSettings?.enabled ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>
+                        {state.cloudSettings?.enabled ? <Cloud size={20} /> : <CloudOff size={20} />}
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800">同期を有効にする</p>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase">Real-time Cloud Sync</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setState(prev => ({ ...prev, cloudSettings: { ...(prev.cloudSettings || { supabaseUrl: '', supabaseKey: '', householdId: '', enabled: false }), enabled: !prev.cloudSettings?.enabled } }))}
+                      className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none ${state.cloudSettings?.enabled ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    >
+                      <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${state.cloudSettings?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">

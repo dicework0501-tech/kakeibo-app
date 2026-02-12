@@ -15,7 +15,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { AppState, FPDiagnosisForm } from '../types';
-import { analyzeFPDiagnosis } from '../services/geminiService';
+import { analyzeFPDiagnosis, getFPDiagnosisExportText } from '../services/geminiService';
 import { FP_OPTIONS } from '../constants';
 import YearlyProjectionChart from './YearlyProjectionChart';
 
@@ -323,11 +323,31 @@ const FPDiagnosisTab: React.FC<Props> = ({ state, setState }) => {
             <textarea value={form.otherNotes} onChange={e => updateForm({ otherNotes: e.target.value })} placeholder="FPに伝えておきたいこと、心配なことなど（任意）" rows={2} className={`${inputClass} resize-none`} />
           </section>
 
-          <div className="pt-4">
+          <div className="pt-4 space-y-3">
             <button type="button" onClick={runDiagnosis} disabled={isDiagnosing}
               className={`w-full py-4 rounded-2xl font-black text-white flex items-center justify-center gap-3 transition-all ${isDiagnosing ? 'bg-slate-300 cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg shadow-emerald-200'}`}>
               {isDiagnosing ? (<><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />診断中...</>) : (<><FileText size={20} />AIで診断する</>)}
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                const conversationHistory = pendingQuestions
+                  ? [{ role: 'assistant' as const, content: pendingQuestions }, { role: 'user' as const, content: followUpAnswer }]
+                  : undefined;
+                const text = getFPDiagnosisExportText(state, form, conversationHistory);
+                const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `FP診断_データとプロンプト_${new Date().toISOString().slice(0, 10)}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="w-full py-3 rounded-2xl font-black border-2 border-slate-200 text-slate-700 bg-white hover:bg-slate-50 flex items-center justify-center gap-2 transition-all"
+            >
+              <FileText size={18} /> 制限時用：データとプロンプトをテキストで出力
+            </button>
+            <p className="text-[11px] text-slate-500">※ API制限時に、Gemini/ChatGPTに貼り付けて使えるテキストをダウンロードできます。</p>
           </div>
         </div>
       </div>

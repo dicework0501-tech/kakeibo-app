@@ -200,11 +200,11 @@ function formatGeminiError(err: unknown): string {
   // よくあるケースを日本語で分岐
   if (status === "RESOURCE_EXHAUSTED" || code === 429) {
     const retrySec = extractRetrySeconds(payload);
-    const retryText = retrySec ? `（約${retrySec}秒後に再試行できます）` : "";
+    const retryText = retrySec ? `約${retrySec}秒後に再試行できます。` : "";
     return [
       "Gemini API の利用上限（クォータ）に達しました。",
       retryText,
-      "プラン/課金/クォータ設定をご確認ください。",
+      "指定時間待っても同じメッセージの場合は、本日の利用上限の可能性があります。1時間以上あけてから、または明日あらためてお試しください。",
     ]
       .filter(Boolean)
       .join(" ");
@@ -230,14 +230,8 @@ function formatGeminiError(err: unknown): string {
   return `申し訳ありません。現在アドバイスを生成できません。${detail}`;
 }
 
-export const analyzeFinance = async (state: AppState) => {
-  const apiKey = normalizeGeminiApiKey(getStoredGeminiApiKey() ?? ENV_API_KEY);
-  if (!apiKey || apiKey === "PLACEHOLDER_API_KEY") {
-    return "Gemini APIキーが未設定です。設定タブで「Gemini APIキー」を保存してから、もう一度お試しください。";
-  }
-
-  const model = getStoredGeminiModel() ?? "gemini-2.0-flash";
-
+/** AI資産分析でAPIに送るプロンプトを組み立てる（API呼び出しなし・エクスポート用） */
+export function buildFinanceAnalysisPrompt(state: AppState): string {
   const latestRecord = state.records.length
     ? [...state.records].sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month))[0]
     : null;
@@ -248,8 +242,7 @@ export const analyzeFinance = async (state: AppState) => {
   const recentMonths = state.records.length
     ? [...state.records].sort((a, b) => (b.year * 12 + b.month) - (a.year * 12 + a.month)).slice(0, 6)
     : [];
-
-  const prompt = `
+  return `
 あなたはプロのファイナンシャルプランナー（CFP®級）です。
 役割: **短いスパン（数ヶ月〜1年）で取りうる推奨アクション**を、国内外の資産運用・家計にまつわる**最新のニュースや制度動向**も参照しながら提案してください。
 
@@ -264,7 +257,27 @@ export const analyzeFinance = async (state: AppState) => {
 2. **短いスパンの推奨アクション**: FP診断は中長期のライフプラン向けなので、ここでは「これから数ヶ月〜1年でやるとよいこと」に絞ってください。具体的なアクション（例: 今月からNISAの積立額を見直す、〇月までに医療保険の見直しを検討する、など）を2〜4個、簡潔に挙げてください。
 3. **多角的な視点**: 資産配分・節税・保険・住宅ローン・教育費・老後資金・キャッシュフローなど、プロのFPとして多様な角度から触れ、そのうち特に「今のニュース・制度と結びついている点」を明示してください。
 4. **文体**: 日本語。箇条書きと短文を中心に、読みやすくまとめてください。参照したニュースや制度がある場合は、その旨を一言添えてください（例: 「高額療養費制度の見直し議論を踏まえ、民間医療保険の見直しを検討してもよいかもしれません」）。
+`.trim();
+}
+
+/** 制限時対策：AI資産分析のデータとプロンプトを1つのテキストで返す（Gemini/ChatGPTに貼り付けて使う用） */
+export function getFinanceAnalysisExportText(state: AppState): string {
+  const header = `【AI資産分析 — 制限時用】以下を Gemini または ChatGPT に貼り付けてご利用ください。
+（API制限に達した場合の代替手段です。このファイル全体をコピーしてブラウザの Gemini / ChatGPT の入力欄に貼り付け、送信してください。）
+
+---
 `;
+  return header + buildFinanceAnalysisPrompt(state);
+}
+
+export const analyzeFinance = async (state: AppState) => {
+  const apiKey = normalizeGeminiApiKey(getStoredGeminiApiKey() ?? ENV_API_KEY);
+  if (!apiKey || apiKey === "PLACEHOLDER_API_KEY") {
+    return "Gemini APIキーが未設定です。設定タブで「Gemini APIキー」を保存してから、もう一度お試しください。";
+  }
+
+  const model = getStoredGeminiModel() ?? "gemini-2.0-flash";
+  const prompt = buildFinanceAnalysisPrompt(state);
 
   try {
     const ai = new GoogleGenAI({ apiKey });
@@ -288,23 +301,14 @@ export interface FPDiagnosisTurn {
   content: string;
 }
 
-/** FP診断: 質問回答と家計データから資産形成の診断を行う。会話履歴を渡すと追加質問への回答後に診断を出力する */
-export const analyzeFPDiagnosis = async (
+/** FP診断でAPIに送るプロンプトを組み立てる（API呼び出しなし・エクスポート用） */
+export function buildFPDiagnosisPrompt(
   state: AppState,
   form: FPDiagnosisForm,
   conversationHistory?: FPDiagnosisTurn[]
-) => {
-  const apiKey = normalizeGeminiApiKey(getStoredGeminiApiKey() ?? ENV_API_KEY);
-  if (!apiKey || apiKey === "PLACEHOLDER_API_KEY") {
-    return "Gemini APIキーが未設定です。設定タブで「Gemini APIキー」を保存してから、もう一度お試しください。";
-  }
-
-  const model = getStoredGeminiModel() ?? "gemini-2.0-flash";
-
+): string {
   const appSummary = buildAppSummaryForFP(state);
-
   const lbl = (opts: readonly { value: string; label: string }[], v: string) => (v && opts.find(o => o.value === v)?.label) || "未回答";
-
   const ageFromBirthDate = (birthDate: string): number | undefined => {
     if (!birthDate || birthDate.length < 4) return undefined;
     const d = new Date(birthDate);
@@ -368,8 +372,7 @@ export const analyzeFPDiagnosis = async (
   ];
 
   const isFollowUp = conversationHistory && conversationHistory.length > 0;
-
-  const prompt = isFollowUp
+  return isFollowUp
     ? `
 あなたはトップクラスのファイナンシャルプランナー（CFP®など）です。
 あなたが追加で質問し、クライアントが回答しました。以下に「初回のヒアリング回答」「アプリデータ」「会話履歴」をまとめます。これで情報が揃ったので、診断結果を出力してください。
@@ -390,7 +393,7 @@ ${conversationHistory!.map(t => (t.role === 'assistant' ? 'FP: ' : 'クライア
 3. 具体的な改善提案（あれば2〜3点）
 4. 持ち家・教育・保険・イベントなどで気をつけるべき点
 専門家らしく、根拠を簡潔に示しつつ、読みやすい文章でまとめてください。箇条書きと短文を活用してください。
-`
+`.trim()
     : `
 あなたはトップクラスのファイナンシャルプランナー（CFP®など）です。
 以下の「クライアントヒアリング項目への回答」と「アプリに登録されている資産・収支の概要」をもとに、資産形成の診断を行います。
@@ -414,7 +417,36 @@ ${appSummary}
 3. 具体的な改善提案（あれば2〜3点）
 4. 持ち家・教育・保険・イベントなどで気をつけるべき点
 専門家らしく、根拠を簡潔に示しつつ、読みやすい文章でまとめてください。箇条書きと短文を活用してください。
+`.trim();
+}
+
+/** 制限時対策：FP診断のデータとプロンプトを1つのテキストで返す（Gemini/ChatGPTに貼り付けて使う用） */
+export function getFPDiagnosisExportText(
+  state: AppState,
+  form: FPDiagnosisForm,
+  conversationHistory?: FPDiagnosisTurn[]
+): string {
+  const header = `【FP診断 — 制限時用】以下を Gemini または ChatGPT に貼り付けてご利用ください。
+（API制限に達した場合の代替手段です。このファイル全体をコピーしてブラウザの Gemini / ChatGPT の入力欄に貼り付け、送信してください。）
+
+---
 `;
+  return header + buildFPDiagnosisPrompt(state, form, conversationHistory);
+}
+
+/** FP診断: 質問回答と家計データから資産形成の診断を行う。会話履歴を渡すと追加質問への回答後に診断を出力する */
+export const analyzeFPDiagnosis = async (
+  state: AppState,
+  form: FPDiagnosisForm,
+  conversationHistory?: FPDiagnosisTurn[]
+) => {
+  const apiKey = normalizeGeminiApiKey(getStoredGeminiApiKey() ?? ENV_API_KEY);
+  if (!apiKey || apiKey === "PLACEHOLDER_API_KEY") {
+    return "Gemini APIキーが未設定です。設定タブで「Gemini APIキー」を保存してから、もう一度お試しください。";
+  }
+
+  const model = getStoredGeminiModel() ?? "gemini-2.0-flash";
+  const prompt = buildFPDiagnosisPrompt(state, form, conversationHistory);
 
   try {
     const ai = new GoogleGenAI({ apiKey });

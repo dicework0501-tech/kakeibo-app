@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { MonthlyRecord, AppState, CloudSettings } from './types';
 import { saveState, loadState, exportData, importData, pushToCloud, fetchFromCloud } from './services/storageService';
-import { analyzeFinance } from './services/geminiService';
+import { analyzeFinance, getFinanceAnalysisExportText } from './services/geminiService';
 import TrendChart from './components/TrendChart';
 import AssetAllocationChart from './components/AssetAllocationChart';
 import CashflowTab from './components/CashflowTab';
@@ -341,20 +341,39 @@ const App: React.FC = () => {
                 ) : (
                   <div className="bg-slate-50/50 p-4 md:p-8 rounded-3xl border border-slate-100 diagnosis-result"><div className="prose prose-slate max-w-none text-slate-700 whitespace-pre-wrap leading-relaxed font-medium text-sm md:text-base">{aiAdvice || "最新の収支データに基づいたAIアドバイスを生成します。"}</div></div>
                 )}
-                <button
-                  disabled={isAnalyzing}
-                  onClick={async () => {
-                    if (isAnalyzing) return;
-                    setIsAnalyzing(true);
-                    setAiAdvice(await analyzeFinance(state));
-                    setIsAnalyzing(false);
-                  }}
-                  className={`mt-10 bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-indigo-200 transition-all flex items-center gap-3 w-full justify-center sm:w-auto ${
-                    isAnalyzing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-indigo-700'
-                  }`}
-                >
-                  <TrendingUp size={20} /> 最新データで診断を開始
-                </button>
+                <div className="mt-10 flex flex-col sm:flex-row gap-3">
+                  <button
+                    disabled={isAnalyzing}
+                    onClick={async () => {
+                      if (isAnalyzing) return;
+                      setIsAnalyzing(true);
+                      setAiAdvice(await analyzeFinance(state));
+                      setIsAnalyzing(false);
+                    }}
+                    className={`bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-3 w-full sm:w-auto ${
+                      isAnalyzing ? 'opacity-60 cursor-not-allowed' : 'hover:bg-indigo-700'
+                    }`}
+                  >
+                    <TrendingUp size={20} /> 最新データで診断を開始
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const text = getFinanceAnalysisExportText(state);
+                      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `AI資産分析_データとプロンプト_${new Date().toISOString().slice(0, 10)}.txt`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="bg-white text-slate-700 px-6 py-4 rounded-2xl font-black border border-slate-200 hover:bg-slate-50 transition-all flex items-center justify-center gap-2 w-full sm:w-auto"
+                  >
+                    <FileText size={18} /> 制限時用：データとプロンプトをテキストで出力
+                  </button>
+                </div>
+                <p className="mt-3 text-[11px] text-slate-500">※「制限時用」ボタンで、Gemini/ChatGPTに貼り付けて使えるテキストファイルをダウンロードできます。</p>
             </div>
           </div>
         ) : activeTab === 'purpose' ? (

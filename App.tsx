@@ -180,19 +180,22 @@ const App: React.FC = () => {
   };
 
   const SummaryCard = ({ title, value, prevValue, isInverse = false, isPercent = false, colorClass, icon: Icon }: any) => (
-    <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-50 flex flex-col justify-between hover:shadow-md transition-shadow">
+    <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-50 flex flex-col justify-between hover:shadow-md transition-shadow min-w-0">
       <div className="flex justify-between items-start mb-2">
         <span className="text-slate-400 text-[10px] font-black uppercase tracking-wider">{title}</span>
-        <div className={`p-1.5 rounded-xl ${colorClass.bg} ${colorClass.text} flex items-center justify-center`}>
+        <div className={`p-1.5 rounded-xl ${colorClass.bg} ${colorClass.text} flex items-center justify-center shrink-0`}>
           <Icon size={14} strokeWidth={2.5} />
         </div>
       </div>
-      <div>
-        <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-black text-slate-800 tracking-tight">
+      <div className="min-w-0">
+        <div className="flex items-baseline gap-1 min-w-0">
+          <span
+            className="font-black text-slate-800 tracking-tight break-all"
+            style={{ fontSize: 'clamp(0.7rem, 4vw + 0.5rem, 1.5rem)' }}
+          >
             {isPercent ? value.toFixed(1) : `¥${value.toLocaleString()}`}
           </span>
-          {isPercent && <span className="text-sm font-black text-slate-400">%</span>}
+          {isPercent && <span className="text-sm font-black text-slate-400 shrink-0">%</span>}
         </div>
         {renderComparison(value, prevValue, isInverse, isPercent)}
       </div>
@@ -250,7 +253,7 @@ const App: React.FC = () => {
       <main className="flex-1 md:ml-64 p-4 md:p-10 pb-20 md:pb-10">
         <header className="mb-4 md:mb-6">
           <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight uppercase">
-            {activeTab === 'dashboard' ? 'Dashboard' : activeTab === 'cashflow' ? 'Cashflow' : activeTab === 'analysis' ? 'AI Insight' : activeTab === 'purpose' ? '目的別貯蓄' : activeTab === 'fp' ? 'FP診断' : 'Settings'}
+            {activeTab === 'dashboard' ? 'ホーム' : activeTab === 'cashflow' ? '収支・資産管理' : activeTab === 'analysis' ? 'AI Insight' : activeTab === 'purpose' ? '目的別貯蓄' : activeTab === 'fp' ? 'FP診断' : '設定'}
           </h2>
         </header>
 
@@ -360,7 +363,7 @@ const App: React.FC = () => {
                     type="button"
                     onClick={() => {
                       const text = getFinanceAnalysisExportText(state);
-                      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+                      const blob = new Blob(['\uFEFF' + text], { type: 'text/plain;charset=utf-8' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
                       a.href = url;

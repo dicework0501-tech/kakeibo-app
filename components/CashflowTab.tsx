@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { MonthlyRecord, DetailItem, AppState } from '../types';
 import AssetAllocationChart from './AssetAllocationChart';
+import MonthYearPicker from './MonthYearPicker';
 
 interface Props {
   state: AppState;
@@ -41,7 +42,9 @@ const CashflowTab: React.FC<Props> = ({
   state, 
   setState, 
   selectedYear, 
+  setSelectedYear,
   selectedMonth, 
+  setSelectedMonth,
   navigateMonth 
 }) => {
   const [newCatNames, setNewCatNames] = useState<Record<string, string>>({
@@ -749,10 +752,10 @@ const CashflowTab: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       <div className="bg-white p-4 rounded-3xl shadow-sm border border-slate-100 space-y-3">
-        <div className="flex items-center justify-center gap-6">
-          <button type="button" onClick={() => navigateMonth(-1)} className="p-2 text-slate-400"><ChevronLeft size={24} /></button>
-          <div className="text-center min-w-32"><span className="text-2xl font-black text-slate-800 tracking-tight">{selectedYear}年 {selectedMonth}月</span></div>
-          <button type="button" onClick={() => navigateMonth(1)} className="p-2 text-slate-400"><ChevronRight size={24} /></button>
+        <div className="flex items-center justify-center gap-4">
+          <button type="button" onClick={() => navigateMonth(-1)} className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 hover:bg-slate-50 rounded-full text-slate-400"><ChevronLeft size={24} /></button>
+          <MonthYearPicker year={selectedYear} month={selectedMonth} onSelect={(y, m) => { setSelectedYear(y); setSelectedMonth(m); }} variant="default" />
+          <button type="button" onClick={() => navigateMonth(1)} className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 hover:bg-slate-50 rounded-full text-slate-400"><ChevronRight size={24} /></button>
         </div>
         {record && (
           <div className="flex justify-center">

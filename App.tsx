@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   LayoutDashboard, 
   PieChart as PieChartIcon, 
@@ -25,6 +25,7 @@ import { analyzeFinance, getFinanceAnalysisExportText } from './services/geminiS
 import TrendChart from './components/TrendChart';
 import AssetAllocationChart from './components/AssetAllocationChart';
 import CashflowTab from './components/CashflowTab';
+import MonthYearPicker from './components/MonthYearPicker';
 import PurposeSavingsTab from './components/PurposeSavingsTab';
 import FPDiagnosisTab from './components/FPDiagnosisTab';
 
@@ -64,6 +65,9 @@ const App: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
 
+  /** 起動時のクラウド取得が終わったか。終わるまで push しない（空データで上書きしないため） */
+  const initialCloudFetchDone = useRef(false);
+
   useEffect(() => {
     const initCloud = async () => {
       if (state.cloudSettings?.enabled) {
@@ -72,7 +76,10 @@ const App: React.FC = () => {
         if (cloudData) {
           setState(cloudData);
         }
+        initialCloudFetchDone.current = true;
         setIsSyncing(false);
+      } else {
+        initialCloudFetchDone.current = true;
       }
     };
     initCloud();
@@ -95,7 +102,11 @@ const App: React.FC = () => {
   useEffect(() => {
     saveState(state);
     const sync = async () => {
-      if (state.cloudSettings?.enabled && !isSyncing) {
+      if (
+        state.cloudSettings?.enabled &&
+        !isSyncing &&
+        initialCloudFetchDone.current
+      ) {
         await pushToCloud(state);
       }
     };
@@ -260,9 +271,9 @@ const App: React.FC = () => {
         {activeTab === 'dashboard' ? (
           <div className="space-y-6 animate-in fade-in duration-700">
             {/* Year/Month Navigation */}
-            <div className="flex items-center justify-center gap-4 bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex items-center justify-center gap-2 md:gap-4 bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
               <button type="button" onClick={() => navigateMonth(-1)} className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 hover:bg-slate-50 active:bg-slate-100 rounded-full text-slate-400 transition-colors touch-manipulation"><ChevronLeft size={20} /></button>
-              <div className="text-center min-w-28 md:min-w-32"><span className="text-lg md:text-xl font-black text-slate-800 tracking-tight">{selectedYear}年 {selectedMonth}月</span></div>
+              <MonthYearPicker year={selectedYear} month={selectedMonth} onSelect={(y, m) => { setSelectedYear(y); setSelectedMonth(m); }} variant="compact" />
               <button type="button" onClick={() => navigateMonth(1)} className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 hover:bg-slate-50 active:bg-slate-100 rounded-full text-slate-400 transition-colors touch-manipulation"><ChevronRight size={20} /></button>
             </div>
 

@@ -122,7 +122,8 @@ const App: React.FC = () => {
       if (
         state.cloudSettings?.enabled &&
         !isSyncing &&
-        initialCloudFetchDone.current
+        initialCloudFetchDone.current &&
+        (state.records?.length ?? 0) > 0
       ) {
         await pushToCloud(state);
       }

@@ -67,6 +67,9 @@ const App: React.FC = () => {
 
   /** 起動時のクラウド取得が終わったか。終わるまで push しない（空データで上書きしないため） */
   const initialCloudFetchDone = useRef(false);
+  /** 常に最新の state を参照するため（タブ復帰時の「空で上書き」防止に使用） */
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   useEffect(() => {
     const initCloud = async () => {
@@ -74,7 +77,13 @@ const App: React.FC = () => {
         setIsSyncing(true);
         const cloudData = await fetchFromCloud(state.cloudSettings);
         if (cloudData) {
-          setState(cloudData);
+          const cloudRecords = cloudData.records ?? [];
+          const localRecords = state.records ?? [];
+          if (cloudRecords.length === 0 && localRecords.length > 0) {
+            await pushToCloud(state);
+          } else {
+            setState(cloudData);
+          }
         }
         initialCloudFetchDone.current = true;
         setIsSyncing(false);
@@ -92,7 +101,15 @@ const App: React.FC = () => {
       if (!state.cloudSettings?.enabled || !state.cloudSettings.supabaseUrl || !state.cloudSettings.supabaseKey || !state.cloudSettings.householdId) return;
       setIsSyncing(true);
       const cloudData = await fetchFromCloud(state.cloudSettings);
-      if (cloudData) setState(cloudData);
+      if (cloudData) {
+        const cloudRecords = cloudData.records ?? [];
+        const localRecords = stateRef.current.records ?? [];
+        if (cloudRecords.length === 0 && localRecords.length > 0) {
+          await pushToCloud(stateRef.current);
+        } else {
+          setState(cloudData);
+        }
+      }
       setIsSyncing(false);
     };
     document.addEventListener('visibilitychange', onVisible);

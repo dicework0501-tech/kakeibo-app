@@ -17,7 +17,9 @@ import {
   KeyRound,
   Cloud,
   CloudOff,
-  FileText
+  FileText,
+  Download,
+  Upload
 } from 'lucide-react';
 import { MonthlyRecord, AppState, CloudSettings } from './types';
 import { saveState, loadState, exportData, importData, pushToCloud, fetchFromCloud } from './services/storageService';
@@ -70,6 +72,8 @@ const App: React.FC = () => {
   /** 常に最新の state を参照するため（タブ復帰時の「空で上書き」防止に使用） */
   const stateRef = useRef(state);
   stateRef.current = state;
+  /** バックアップ復元用のファイル入力 */
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const initCloud = async () => {
@@ -471,6 +475,75 @@ const App: React.FC = () => {
                       <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${state.cloudSettings?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
                     </button>
                   </div>
+                </div>
+
+                {/* バックアップ・復元 */}
+                <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                      <FileText size={20} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">バックアップ・復元</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">データの保存・復元</p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mb-4">
+                    定期的にダウンロードしておくと、データ消失時に復元できます。復元すると現在のデータはバックアップの内容に置き換わります。
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const encoded = exportData(state);
+                        const blob = new Blob([encoded], { type: 'text/plain;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `家計ミエルカ_バックアップ_${new Date().toISOString().slice(0, 10)}.json.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="bg-amber-500 text-white px-5 py-3 rounded-xl font-black shadow-sm hover:bg-amber-600 transition-colors flex items-center gap-2"
+                    >
+                      <Download size={18} /> バックアップをダウンロード
+                    </button>
+                    <input
+                      type="file"
+                      accept=".json,.txt,.json.txt"
+                      className="hidden"
+                      ref={importFileInputRef}
+                      onChange={(e) => {
+                        const file = e.target?.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const text = (reader.result as string)?.trim() ?? '';
+                          const restored = importData(text);
+                          if (restored) {
+                            setState(restored);
+                          } else {
+                            window.alert('このファイルは復元できません。形式を確認してください。');
+                          }
+                        };
+                        reader.readAsText(file, 'utf-8');
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!window.confirm('現在のデータがバックアップの内容に置き換わります。よろしいですか？')) return;
+                        importFileInputRef.current?.click();
+                      }}
+                      className="bg-white text-slate-700 px-5 py-3 rounded-xl font-black border border-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                    >
+                      <Upload size={18} /> バックアップから復元
+                    </button>
+                  </div>
+                  <p className="mt-3 text-[10px] text-slate-400 font-bold">
+                    復元前に確認ダイアログが表示されます。クラウド同期ONの場合はクラウドにも反映されます。
+                  </p>
                 </div>
 
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
